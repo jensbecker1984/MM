@@ -22,9 +22,9 @@
 
 <div class="container">
     <h1 id="station">Abfahrtstafel</h1>
-    <div id="station-name" class="station-name">Suche Haltestelle...</div>
+    <div id="station-name" class="station-name">MaintalMobil lädt ÖPNV-Daten...</div>
     <div id="board">
-        <div class="loading">Abfahrten werden geladen...</div>
+        <div class="loading">Abfahrten werden live abgerufen...</div>
     </div>
 </div>
 
@@ -36,55 +36,76 @@
     const stationNameDiv = document.getElementById('station-name');
 
     if (!stationId) {
-        board.innerHTML = '<div class="error"><b>Fehler:</b> Keine Haltestellen-ID im QR-Code gefunden!</div>';
+        board.innerHTML = '<div class="error"><b>Fehler:</b> Keine Haltestellen-ID im QR-Code gefunden! Bitte teste einen Code aus deiner Google-Tabelle.</div>';
         stationNameDiv.textContent = "ID fehlt";
     } else {
-        // Ruft sicher unsere eigene korrigierte Vercel-Schnittstelle auf
-        fetch(`/api/departures?id=${stationId}`)
-            .then(async res => {
-                const text = await res.text();
-                let parsedData = null;
-                try {
-                    parsedData = JSON.parse(text);
-                } catch(e) {}
+        const apiKey = '722c6d52-050f-4238-9542-adecb75193a4';
+        
+        // Wir leiten die RMV-Anfrage über den öffentlichen CORS-Proxy um
+        const rmvUrl = `https://rmv.de{apiKey}&id=${stationId}&format=json&duration=60`;
+        const proxyUrl = `https://herokuapp.com{rmvUrl}`;
 
-                if (!res.ok) {
-                    throw new Error(parsedData?.error || `Serverfehler ${res.status}`);
-                }
-                return parsedData;
-            })
-            .then(data => {
-                const departures = data.DepartureList?.Departure;
+        fetch(proxyUrl, {
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest'
+            }
+        })
+        .then(async res => {
+            const text = await res.text();
+            
+            // Falls man den temporären Zugriff beim Proxy einmalig aktivieren muss
+            if (text.includes("button")) {
+                throw new Error("Bitte öffne einmalig https://herokuapp.com auf diesem Gerät und klicke auf den Button, um den Zugriff freizuschalten.");
+            }
 
-                if (!departures || departures.length === 0) {
-                    board.innerHTML = '<div class="error">Aktuell keine Abfahrten für diese Haltestelle im RMV-System.</div>';
-                    stationNameDiv.textContent = "Keine Fahrten";
-                    return;
-                }
+            let parsedData = null;
+            try {
+                parsedData = JSON.parse(text);
+            } catch(e) {
+                throw new Error("Ungültige Antwort vom Server erhalten.");
+            }
 
-                // Haltestellenname anzeigen
-                stationNameDiv.textContent = data.DepartureList?.stop || (departures && departures.stop) || "Abfahrtstafel";
+            if (!res.ok) {
+                throw new Error(parsedData?.error || `RMV meldet Status ${res.status}`);
+            }
+            return parsedData;
+        })
+        .then(data => {
+            if (data.errorCode || data.errorMsg) {
+                throw new Error(`RMV-Meldung: ${data.errorMsg} (Code ${data.errorCode})`);
+            }
 
-                let html = '';
-                departures.forEach(dep => {
-                    const zeit = dep.time ? dep.time.substring(0, 5) : "--:--";
-                    const linienName = dep.name || "Bus";
+            const departures = data.DepartureList?.Departure;
 
-                    html += `
-                        <div class="departure-row">
-                            <span class="line">${linienName}</span>
-                            <span class="direction">${dep.direction || "Richtung unbekannt"}</span>
-                            <span class="time">${zeit} Uhr</span>
-                        </div>
-                    `;
-                });
-                board.innerHTML = html;
-            })
-            .catch(err => {
-                console.error(err);
-                board.innerHTML = `<div class="error"><b>Diagnose-Information:</b><br>${err.message}</div>`;
-                stationNameDiv.textContent = "Fehleranalyse";
+            if (!departures || departures.length === 0) {
+                board.innerHTML = '<div class="error">Aktuell keine Abfahrten für diese Haltestelle im RMV-System.</div>';
+                stationNameDiv.textContent = "Keine Fahrten";
+                return;
+            }
+
+            // Haltestellenname anzeigen
+            stationNameDiv.textContent = data.DepartureList?.stop || (departures[0] && departures[0].stop) || "Abfahrtstafel";
+
+            let html = '';
+            departures.forEach(dep => {
+                const zeit = dep.time ? dep.time.substring(0, 5) : "--:--";
+                const linienName = dep.name || "Bus";
+
+                html += `
+                    <div class="departure-row">
+                        <span class="line">${linienName}</span>
+                        <span class="direction">${dep.direction || "Richtung unbekannt"}</span>
+                        <span class="time">${zeit} Uhr</span>
+                    </div>
+                `;
             });
+            board.innerHTML = html;
+        })
+        .catch(err => {
+            console.error(err);
+            board.innerHTML = `<div class="error"><b>Verbindungs-Hinweis:</b><br>${err.message}</div>`;
+            stationNameDiv.textContent = "Schnittstellen-Status";
+        });
     }
 </script>
 </body>
