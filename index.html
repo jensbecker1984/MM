@@ -1,3 +1,33 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Live-Abfahrten MaintalMobil</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f4f4f9; margin: 0; padding: 15px; color: #333; }
+        .container { max-width: 500px; margin: 0 auto; background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 10px rgba(0,0,0,0.05); }
+        h1 { margin-top: 0; font-size: 1.5rem; color: #005a9c; border-bottom: 2px solid #005a9c; padding-bottom: 8px; }
+        .station-name { font-weight: bold; font-size: 1.1rem; margin-bottom: 15px; color: #555; }
+        .departure-row { display: flex; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid #eee; font-size: 1.1rem; }
+        .departure-row:last-child { border-bottom: none; }
+        .line { background: #005a9c; color: white; padding: 3px 8px; border-radius: 4px; font-weight: bold; font-size: 0.9rem; }
+        .direction { flex-grow: 1; margin-left: 12px; font-weight: 500; }
+        .time { font-weight: bold; color: #e67e22; }
+        .error { color: #c0392b; font-weight: bold; text-align: center; margin-top: 20px; }
+        .loading { text-align: center; color: #7f8c8d; font-style: italic; padding: 20px; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1 id="station">Abfahrtstafel</h1>
+    <div id="station-name" class="station-name">Suche Haltestelle...</div>
+    <div id="board">
+        <div class="loading">Abfahrten werden geladen...</div>
+    </div>
+</div>
+
 <script>
     const urlParams = new URLSearchParams(window.location.search);
     const stationId = urlParams.get('id');
@@ -8,22 +38,22 @@
     if (!stationId) {
         board.innerHTML = '<div class="error">Fehler: Keine Haltestellen-ID im QR-Code gefunden!</div>';
     } else {
-        // Ruft deine eigene Vercel-Serverless-Schnittstelle auf
         fetch(`/api/departures?id=${stationId}`)
             .then(res => {
-                if (!res.ok) throw new Error('Netzwerk-Fehler beim Backend-Aufruf');
+                if (!res.ok) throw new Error('Netzwerk-Fehler beim Backend');
                 return res.json();
             })
             .then(data => {
-                // RMV bettet das Abfahrts-Array in "DepartureList.Departure" ein
+                // Sicherstellen, dass die Liste existiert
                 const departures = data.DepartureList?.Departure;
 
                 if (!departures || departures.length === 0) {
                     board.innerHTML = '<div class="error">Aktuell keine Abfahrten für diese Haltestelle verfügbar.</div>';
+                    stationNameDiv.textContent = "Keine Daten";
                     return;
                 }
 
-                // Haltestellenname aus der ersten Abfahrt ermitteln
+                // Haltestellenname richtig aus dem ERSTEN Eintrag der Liste lesen
                 if (departures[0] && departures[0].stop) {
                     stationNameDiv.textContent = departures[0].stop;
                 } else {
@@ -33,10 +63,7 @@
                 // Abfahrtstabelle generieren
                 let html = '';
                 departures.forEach(dep => {
-                    // Zeit auf HH:MM kürzen
                     const zeit = dep.time ? dep.time.substring(0, 5) : "--:--";
-                    
-                    // Linie auslesen (HAFAS nutzt oft dep.name für die Linienbezeichnung)
                     const linienName = dep.name || "Bus";
 
                     html += `
@@ -52,6 +79,9 @@
             .catch(err => {
                 console.error(err);
                 board.innerHTML = '<div class="error">Verbindungsfehler zur Live-Schnittstelle.</div>';
+                stationNameDiv.textContent = "Fehler";
             });
     }
 </script>
+</body>
+</html>
