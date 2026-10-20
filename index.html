@@ -36,31 +36,35 @@
     const stationNameDiv = document.getElementById('station-name');
 
     if (!stationId) {
-        board.innerHTML = '<div class="error">Fehler: Keine Haltestellen-ID im QR-Code gefunden!</div>';
+        board.innerHTML = '<div class="error"><b>Fehler:</b> Keine Haltestellen-ID im QR-Code gefunden!</div>';
+        stationNameDiv.textContent = "ID fehlt";
     } else {
         fetch(`/api/departures?id=${stationId}`)
-            .then(res => {
-                if (!res.ok) throw new Error('Backend lieferte Fehler-Status');
-                return res.json();
+            .then(async res => {
+                const text = await res.text();
+                let data = null;
+                try {
+                    data = JSON.parse(text);
+                } catch(e) {}
+
+                if (!res.ok) {
+                    // Wir werfen die Fehlermeldung aus dem Backend direkt weiter
+                    throw new Error(data?.error || `Server meldet Status ${res.status}: ${text.substring(0, 80)}`);
+                }
+                return data;
             })
             .then(data => {
-                // RMV HAPI liefert ein Array in data.DepartureList.Departure
                 const departures = data.DepartureList?.Departure;
 
                 if (!departures || departures.length === 0) {
-                    board.innerHTML = '<div class="error">Aktuell keine Abfahrten für diese Haltestelle verfügbar.</div>';
-                    stationNameDiv.textContent = "Keine Abfahrten";
+                    board.innerHTML = '<div class="error">Aktuell keine Abfahrten für diese Haltestelle im System.</div>';
+                    stationNameDiv.textContent = "Keine Fahrten";
                     return;
                 }
 
-                // Haltestellenname sicher aus dem ERSTEN Array-Element lesen
-                if (departures[0] && departures[0].stop) {
-                    stationNameDiv.textContent = departures[0].stop;
-                } else {
-                    stationNameDiv.textContent = "Abfahrtstafel";
-                }
+                // Haltestellenname anzeigen
+                stationNameDiv.textContent = data.DepartureList?.stop || (departures[0] && departures[0].stop) || "Abfahrtstafel";
 
-                // Abfahrtstabelle aufbauen
                 let html = '';
                 departures.forEach(dep => {
                     const zeit = dep.time ? dep.time.substring(0, 5) : "--:--";
@@ -77,9 +81,10 @@
                 board.innerHTML = html;
             })
             .catch(err => {
-                console.error("Fehlerdetails:", err);
-                board.innerHTML = '<div class="error">Verbindungsfehler zur Live-Schnittstelle.</div>';
-                stationNameDiv.textContent = "Schnittstellenfehler";
+                console.error(err);
+                // Zeigt haargenau an, was schiefgeht!
+                board.innerHTML = `<div class="error"><b>Schnittstellen-Details:</b><br>${err.message}</div>`;
+                stationNameDiv.textContent = "Fehler-Diagnose";
             });
     }
 </script>
