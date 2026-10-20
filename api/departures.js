@@ -1,8 +1,9 @@
 // api/departures.js
 export default async function handler(req, res) {
-  // CORS-Header setzen, damit das Frontend zugreifen darf
+  // CORS aktivieren
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET');
+  res.setHeader('Content-Type', 'application/json');
 
   const { id } = req.query;
 
@@ -12,19 +13,28 @@ export default async function handler(req, res) {
 
   const apiKey = process.env.RMV_API_KEY; 
   
-  // Zusammenbau laut RMV-Dokumentation:
-  // format=json erzwingt die JSON-Rückgabe (wichtig!)
-  // duration=60 sucht Verbindungen für die nächste Stunde
+  if (!apiKey) {
+    return res.status(500).json({ 
+      error: 'Konfigurationsfehler: Der RMV_API_KEY wurde in den Vercel-Environment-Variables nicht gefunden!' 
+    });
+  }
+
   const rmvUrl = `https://rmv.de{apiKey}&id=${id}&format=json&duration=60`;
 
   try {
     const response = await fetch(rmvUrl);
+    
+    // Falls der RMV mit einem Fehler (z.B. 401 unbefugt) antwortet
     if (!response.ok) {
-      throw new Error(`RMV API antwortet mit Status ${response.status}`);
+      return res.status(response.status).json({ 
+        error: `Der RMV-Server hat mit Status ${response.status} geantwortet. Eventuell ist der API-Key ungültig.` 
+      });
     }
+
     const data = await response.json();
     return res.status(200).json(data);
   } catch (error) {
-    return res.status(500).json({ error: error.message });
+    // Fängt Netzwerkfehler oder Node-Abstürze ab
+    return res.status(500).json({ error: `Interner Serverfehler im Backend: ${error.message}` });
   }
 }
