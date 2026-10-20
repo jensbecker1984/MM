@@ -12,25 +12,24 @@ export default function handler(req, res) {
     return res.status(400).json({ error: 'Keine Haltestellen-ID übergeben.' });
   }
 
-  // Setze hier als absolute Absicherung deinen echten Key ein
-  const apiKey = process.env.RMV_API_KEY || '722c6d52-050f-4238-9542-adecb75193a4'; 
-  
-  if (!apiKey || apiKey === 'DEIN_RMV_KEY_HIER') {
-    return res.status(500).json({ 
-      error: 'Konfigurationsfehler: Der RMV_API_KEY fehlt im Code oder in den Vercel-Variablen!' 
-    });
-  }
+  const apiKey = '722c6d52-050f-4238-9542-adecb75193a4'; 
 
-  const rmvUrl = `https://rmv.de{apiKey}&id=${id}&format=json&duration=60`;
+  // URL absolut sauber aufbauen
+  const urlObj = new URL('https://rmv.de');
+  urlObj.searchParams.append('accessId', apiKey);
+  urlObj.searchParams.append('id', id);
+  urlObj.searchParams.append('format', 'json');
+  urlObj.searchParams.append('duration', '60');
 
-  // Optionen für die RMV-API: Wichtig ist der User-Agent!
+  // Wir fügen zusätzliche Header hinzu, damit die Anfrage wie ein echter Browser aussieht
   const options = {
     headers: {
-      'User-Agent': 'MaintalMobilAbfahrtstafel/1.0 (Kontakt via Vercel)'
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+      'Accept': 'application/json, text/html'
     }
   };
 
-  https.get(rmvUrl, options, (apiRes) => {
+  https.get(urlObj.toString(), options, (apiRes) => {
     let data = '';
 
     apiRes.on('data', (chunk) => {
@@ -39,26 +38,26 @@ export default function handler(req, res) {
 
     apiRes.on('end', () => {
       try {
-        // Falls der RMV kein JSON schickt, fängt das der catch-Block ab
+        // Testen, ob es JSON ist
         const jsonData = JSON.parse(data);
         
-        // Falls die RMV-API intern einen Fehler meldet (z.B. falscher Key)
         if (jsonData.errorCode || jsonData.errorMsg) {
           return res.status(400).json({ 
-            error: `RMV-Systemmeldung (${jsonData.errorCode}): ${jsonData.errorMsg || 'Key ungültig.'}` 
+            error: "RMV-Systemmeldung (" + jsonData.errorCode + "): " + (jsonData.errorMsg || "Key oder ID fehlerhaft.")
           });
         }
 
         return res.status(200).json(jsonData);
       } catch (e) {
-        // Zeigt uns den rohen Text, falls der RMV eine Fehler-Webseite schickt
+        // HIER DIE ÄNDERUNG: Wir senden den ROHE TEXT-INHALT der RMV-Antwort zurück!
+        // So sehen wir im roten Kasten genau, ob dort "Access Denied", "Invalid Key" oder ein HTML-Fehler steht.
         return res.status(500).json({ 
-          error: `Der RMV hat kein sauberes JSON geliefert. Inhalt: ${data.substring(0, 120)}` 
+          error: "RMV lieferte kein JSON. Roher Server-Antworttext: " + data.replace(/<[^>]*>/g, ' ').substring(0, 150)
         });
       }
     });
 
   }).on('error', (err) => {
-    return res.status(500).json({ error: `Netzwerkfehler zum RMV: ${err.message}` });
+    return res.status(500).json({ error: "Netzwerkfehler zum RMV: " + err.message });
   });
 }
