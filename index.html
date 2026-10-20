@@ -22,9 +22,9 @@
 
 <div class="container">
     <h1 id="station">Abfahrtstafel</h1>
-    <div id="station-name" class="station-name">Suche Haltestelle...</div>
+    <div id="station-name" class="station-name">MaintalMobil lädt ÖPNV-Daten...</div>
     <div id="board">
-        <div class="loading">Abfahrten werden geladen...</div>
+        <div class="loading">Abfahrten werden live abgerufen...</div>
     </div>
 </div>
 
@@ -36,44 +36,52 @@
     const stationNameDiv = document.getElementById('station-name');
 
     if (!stationId) {
-        board.innerHTML = '<div class="error"><b>Fehler:</b> Keine Haltestellen-ID im QR-Code gefunden!</div>';
+        board.innerHTML = '<div class="error"><b>Fehler:</b> Keine Haltestellen-ID im QR-Code gefunden! Bitte teste einen Code aus deiner Google-Tabelle.</div>';
         stationNameDiv.textContent = "ID fehlt";
     } else {
-        // Ruft sicher unsere eigene korrigierte Vercel-Schnittstelle auf
-        fetch(`/api/departures?id=${stationId}`)
-            .then(async res => {
-                const text = await res.text();
-                let parsedData = null;
-                try {
-                    parsedData = JSON.parse(text);
-                } catch(e) {}
+        // Wir nutzen den freien HAFAS-Proxy für RMV-Daten (Sicher vor IP-Sperren)
+        const openTransitUrl = `https://transport.rest{stationId}/departures?duration=60&results=15`;
 
-                if (!res.ok) {
-                    throw new Error(parsedData?.error || `Serverfehler ${res.status}`);
-                }
-                return parsedData;
+        fetch(openTransitUrl)
+            .then(res => {
+                if (!res.ok) throw new Error(`Netzwerk meldet Status ${res.status}`);
+                return res.json();
             })
             .then(data => {
-                const departures = data.DepartureList?.Departure;
+                // Bei dieser API liegen die Abfahrten direkt im Haupt-Array oder unter data.departures
+                const departures = data.departures || data;
 
                 if (!departures || departures.length === 0) {
-                    board.innerHTML = '<div class="error">Aktuell keine Abfahrten für diese Haltestelle im RMV-System.</div>';
+                    board.innerHTML = '<div class="error">Aktuell keine Abfahrten für diese Haltestelle verfügbar.</div>';
                     stationNameDiv.textContent = "Keine Fahrten";
                     return;
                 }
 
-                // Haltestellenname anzeigen
-                stationNameDiv.textContent = data.DepartureList?.stop || (departures && departures.stop) || "Abfahrtstafel";
+                // Haltestellenname aus der ersten Abfahrt setzen
+                if (departures[0] && departures[0].stop) {
+                    stationNameDiv.textContent = departures[0].stop.name;
+                } else {
+                    stationNameDiv.textContent = "Abfahrtstafel";
+                }
 
+                // Abfahrtstabelle generieren
                 let html = '';
                 departures.forEach(dep => {
-                    const zeit = dep.time ? dep.time.substring(0, 5) : "--:--";
-                    const linienName = dep.name || "Bus";
+                    // Uhrzeit aus dem ISO-Zeitstempel herausschneiden (z.B. "2023-10-20T14:30:00" -> "14:30")
+                    let zeit = "--:--";
+                    if (dep.when) {
+                        zeit = dep.when.substring(11, 16);
+                    } else if (dep.plannedWhen) {
+                        zeit = dep.plannedWhen.substring(11, 16);
+                    }
+                    
+                    const linienName = dep.line?.name || "Bus";
+                    const richtung = dep.direction || "Richtung unbekannt";
 
                     html += `
                         <div class="departure-row">
                             <span class="line">${linienName}</span>
-                            <span class="direction">${dep.direction || "Richtung unbekannt"}</span>
+                            <span class="direction">${richtung}</span>
                             <span class="time">${zeit} Uhr</span>
                         </div>
                     `;
@@ -82,8 +90,8 @@
             })
             .catch(err => {
                 console.error(err);
-                board.innerHTML = `<div class="error"><b>Diagnose-Information:</b><br>${err.message}</div>`;
-                stationNameDiv.textContent = "Fehleranalyse";
+                board.innerHTML = `<div class="error"><b>Abfrage-Fehler:</b><br>${err.message}<br>Bitte überprüfe, ob die Haltestellen-ID im RMV-Format vorliegt.</div>`;
+                stationNameDiv.textContent = "Verbindungsfehler";
             });
     }
 </script>
