@@ -40,27 +40,27 @@
     } else {
         fetch(`/api/departures?id=${stationId}`)
             .then(res => {
-                if (!res.ok) throw new Error('Netzwerk-Fehler beim Backend');
+                if (!res.ok) throw new Error('Backend lieferte Fehler-Status');
                 return res.json();
             })
             .then(data => {
-                // Sicherstellen, dass die Liste existiert
+                // RMV HAPI liefert ein Array in data.DepartureList.Departure
                 const departures = data.DepartureList?.Departure;
 
                 if (!departures || departures.length === 0) {
                     board.innerHTML = '<div class="error">Aktuell keine Abfahrten für diese Haltestelle verfügbar.</div>';
-                    stationNameDiv.textContent = "Keine Daten";
+                    stationNameDiv.textContent = "Keine Abfahrten";
                     return;
                 }
 
-                // Haltestellenname richtig aus dem ERSTEN Eintrag der Liste lesen
+                // Haltestellenname sicher aus dem ERSTEN Array-Element lesen
                 if (departures[0] && departures[0].stop) {
                     stationNameDiv.textContent = departures[0].stop;
                 } else {
                     stationNameDiv.textContent = "Abfahrtstafel";
                 }
 
-                // Abfahrtstabelle generieren
+                // Abfahrtstabelle aufbauen
                 let html = '';
                 departures.forEach(dep => {
                     const zeit = dep.time ? dep.time.substring(0, 5) : "--:--";
@@ -77,9 +77,9 @@
                 board.innerHTML = html;
             })
             .catch(err => {
-                console.error(err);
+                console.error("Fehlerdetails:", err);
                 board.innerHTML = '<div class="error">Verbindungsfehler zur Live-Schnittstelle.</div>';
-                stationNameDiv.textContent = "Fehler";
+                stationNameDiv.textContent = "Schnittstellenfehler";
             });
     }
 </script>
