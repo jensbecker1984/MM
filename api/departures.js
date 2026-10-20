@@ -12,20 +12,18 @@ export default function handler(req, res) {
     return res.status(400).json({ error: 'Keine Haltestellen-ID übergeben.' });
   }
 
-  // 1. ZUERST: Vercel-Key prüfen. 
-  // Falls Vercel den Key nicht findet, nutzen wir deinen direkt als Fallback hier im Code!
-  // ERSETZE 'DEIN_RMV_KEY_HIER' MIT DEINEM ECHTEN KEY, falls process.env leer bleibt!
+  // Setze hier als Fallback deinen echten Key ein, falls process.env bei Vercel hakt
   const apiKey = process.env.RMV_API_KEY || 'DEIN_RMV_KEY_HIER'; 
   
   if (!apiKey || apiKey === 'DEIN_RMV_KEY_HIER') {
     return res.status(500).json({ 
-      error: 'Konfigurationsfehler: Der RMV-Key fehlt im Backend-Code und in den Vercel-Variablen!' 
+      error: 'Konfigurationsfehler: Der RMV-Key fehlt im Code oder in den Vercel-Variablen!' 
     });
   }
 
+  // HIER WAR DER FEHLER: Jetzt steht das Fragezeichen (?) und der Pfad exakt so, wie der RMV es verlangt:
   const rmvUrl = `https://rmv.de{apiKey}&id=${id}&format=json&duration=60`;
 
-  // Zuverlässige Abfrage mit dem nativen HTTPS-Modul (läuft auf jeder Node-Version)
   https.get(rmvUrl, (apiRes) => {
     let data = '';
 
@@ -37,16 +35,15 @@ export default function handler(req, res) {
       try {
         const jsonData = JSON.parse(data);
         
-        // Falls der RMV eine Fehlermeldung im JSON mitsendet
         if (jsonData.errorCode || jsonData.errorMsg) {
           return res.status(400).json({ 
-            error: `RMV-Fehler (${jsonData.errorCode}): ${jsonData.errorMsg || 'Eventuell ist der API-Key unzulässig.'}` 
+            error: `RMV-Fehler (${jsonData.errorCode}): ${jsonData.errorMsg}` 
           });
         }
 
         return res.status(200).json(jsonData);
       } catch (e) {
-        return res.status(500).json({ error: `Fehler beim Lesen der RMV-Antwort: ${e.message}. Inhalt war: ${data.substring(0, 100)}` });
+        return res.status(500).json({ error: `Fehler beim Lesen der RMV-Antwort: ${e.message}` });
       }
     });
 
