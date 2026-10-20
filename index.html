@@ -41,36 +41,21 @@
     } else {
         const apiKey = '722c6d52-050f-4238-9542-adecb75193a4';
         
-        // Wir leiten die RMV-Anfrage über den öffentlichen CORS-Proxy um
+        // Die originale RMV-Anfrage
         const rmvUrl = `https://rmv.de{apiKey}&id=${stationId}&format=json&duration=60`;
-        const proxyUrl = `https://herokuapp.com{rmvUrl}`;
+        
+        // Wir packen den RMV-Link in den sicheren Allorigins-Proxy (erlaubt HTTPS und umgeht CORS)
+        const proxyUrl = `https://allorigins.win{encodeURIComponent(rmvUrl)}`;
 
-        fetch(proxyUrl, {
-            headers: {
-                'X-Requested-With': 'XMLHttpRequest'
-            }
+        fetch(proxyUrl)
+        .then(res => {
+            if (!res.ok) throw new Error(`Netzwerk meldet Status ${res.status}`);
+            return res.json();
         })
-        .then(async res => {
-            const text = await res.text();
-            
-            // Falls man den temporären Zugriff beim Proxy einmalig aktivieren muss
-            if (text.includes("button")) {
-                throw new Error("Bitte öffne einmalig https://herokuapp.com auf diesem Gerät und klicke auf den Button, um den Zugriff freizuschalten.");
-            }
+        .then(proxyData => {
+            // Allorigins verpackt die Antwort als Text im Feld "contents"
+            const data = JSON.parse(proxyData.contents);
 
-            let parsedData = null;
-            try {
-                parsedData = JSON.parse(text);
-            } catch(e) {
-                throw new Error("Ungültige Antwort vom Server erhalten.");
-            }
-
-            if (!res.ok) {
-                throw new Error(parsedData?.error || `RMV meldet Status ${res.status}`);
-            }
-            return parsedData;
-        })
-        .then(data => {
             if (data.errorCode || data.errorMsg) {
                 throw new Error(`RMV-Meldung: ${data.errorMsg} (Code ${data.errorCode})`);
             }
@@ -78,7 +63,7 @@
             const departures = data.DepartureList?.Departure;
 
             if (!departures || departures.length === 0) {
-                board.innerHTML = '<div class="error">Aktuell keine Abfahrten für diese Haltestelle im RMV-System.</div>';
+                board.innerHTML = '<div class="error">Aktuell keine Abfahrten für diese Haltestelle im RMV-System verfügbar.</div>';
                 stationNameDiv.textContent = "Keine Fahrten";
                 return;
             }
@@ -103,8 +88,8 @@
         })
         .catch(err => {
             console.error(err);
-            board.innerHTML = `<div class="error"><b>Verbindungs-Hinweis:</b><br>${err.message}</div>`;
-            stationNameDiv.textContent = "Schnittstellen-Status";
+            board.innerHTML = `<div class="error"><b>Verbindungs-Information:</b><br>${err.message}</div>`;
+            stationNameDiv.textContent = "Schnittstellen-Fehler";
         });
     }
 </script>
