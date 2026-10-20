@@ -36,40 +36,35 @@
     const stationNameDiv = document.getElementById('station-name');
 
     if (!stationId) {
-        board.innerHTML = '<div class="error"><b>Fehler:</b> Keine Haltestellen-ID im QR-Code gefunden! Bitte teste einen Code aus deiner Google-Tabelle.</div>';
+        board.innerHTML = '<div class="error"><b>Fehler:</b> Keine Haltestellen-ID im QR-Code gefunden!</div>';
         stationNameDiv.textContent = "ID fehlt";
     } else {
-        const apiKey = '722c6d52-050f-4238-9542-adecb75193a4';
-        
-        // Die originale RMV-Anfrage
-        const rmvUrl = `https://rmv.de{apiKey}&id=${stationId}&format=json&duration=60`;
-        
-        // Wir packen den RMV-Link in den sicheren Allorigins-Proxy (erlaubt HTTPS und umgeht CORS)
-        const proxyUrl = `https://allorigins.win{encodeURIComponent(rmvUrl)}`;
+        // Aufruf deiner eigenen Vercel Edge Function
+        fetch(`/api/departures?id=${stationId}`)
+        .then(async res => {
+            const isJson = res.headers.get('content-type')?.includes('application/json');
+            const data = isJson ? await res.json() : null;
 
-        fetch(proxyUrl)
-        .then(res => {
-            if (!res.ok) throw new Error(`Netzwerk meldet Status ${res.status}`);
-            return res.json();
+            if (!res.ok) {
+                throw new Error(data?.error || `Server meldet Status ${res.status}`);
+            }
+            return data;
         })
-        .then(proxyData => {
-            // Allorigins verpackt die Antwort als Text im Feld "contents"
-            const data = JSON.parse(proxyData.contents);
-
+        .then(data => {
             if (data.errorCode || data.errorMsg) {
-                throw new Error(`RMV-Meldung: ${data.errorMsg} (Code ${data.errorCode})`);
+                throw new Error(`RMV-Fehler (${data.errorCode}): ${data.errorMsg}`);
             }
 
             const departures = data.DepartureList?.Departure;
 
             if (!departures || departures.length === 0) {
-                board.innerHTML = '<div class="error">Aktuell keine Abfahrten für diese Haltestelle im RMV-System verfügbar.</div>';
+                board.innerHTML = '<div class="error">Aktuell keine Abfahrten für diese Haltestelle im RMV-System.</div>';
                 stationNameDiv.textContent = "Keine Fahrten";
                 return;
             }
 
             // Haltestellenname anzeigen
-            stationNameDiv.textContent = data.DepartureList?.stop || (departures[0] && departures[0].stop) || "Abfahrtstafel";
+            stationNameDiv.textContent = data.DepartureList?.stop || (departures && departures.stop) || "Abfahrtstafel";
 
             let html = '';
             departures.forEach(dep => {
