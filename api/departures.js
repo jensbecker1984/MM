@@ -13,7 +13,7 @@ export default function handler(req, res) {
   }
 
   // Setze hier als Fallback deinen echten Key ein, falls process.env bei Vercel hakt
-  const apiKey = process.env.RMV_API_KEY || 'DEIN_RMV_KEY_HIER'; 
+  const apiKey = process.env.RMV_API_KEY || '722c6d52-050f-4238-9542-adecb75193a4'; 
   
   if (!apiKey || apiKey === 'DEIN_RMV_KEY_HIER') {
     return res.status(500).json({ 
