@@ -39,6 +39,7 @@
         board.innerHTML = '<div class="error"><b>Fehler:</b> Keine Haltestellen-ID im QR-Code gefunden!</div>';
         stationNameDiv.textContent = "ID fehlt";
     } else {
+        // Ruft sicher unsere eigene korrigierte Vercel-Schnittstelle auf
         fetch(`/api/departures?id=${stationId}`)
             .then(async res => {
                 const text = await res.text();
@@ -62,7 +63,7 @@
                 }
 
                 // Haltestellenname anzeigen
-                stationNameDiv.textContent = data.DepartureList?.stop || (departures[0] && departures[0].stop) || "Abfahrtstafel";
+                stationNameDiv.textContent = data.DepartureList?.stop || (departures && departures.stop) || "Abfahrtstafel";
 
                 let html = '';
                 departures.forEach(dep => {
