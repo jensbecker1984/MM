@@ -41,37 +41,38 @@
         board.innerHTML = '<div class="error">Fehler: Keine Haltestellen-ID im QR-Code gefunden!</div>';
     } else {
         // 2. Unsere eigene Serverless Funktion aufrufen (relativer Pfad funktioniert nach Deployment automatisch)
-        fetch(`/api/departures?id=${stationId}`)
-            .then(res => res.json())
-            .then(data => {
-                if (data.error || !data.Departure) {
-                    board.innerHTML = '<div class="error">Keine aktuellen Abfahrten gefunden oder API-Fehler.</div>';
-                    return;
-                }
+	fetch(`/api/departures?id=${stationId}`)
+	    .then(res => res.json())
+ 	   .then(data => {
+ 	       // Sicherstellen, dass wir die Departure-Liste vom RMV richtig greifen
+	        const departures = data.DepartureList?.Departure || data.Departure;
 
-                // Haltestellenname anzeigen (nimmt den Namen der ersten Abfahrt)
-                if (data.Departure.length > 0) {
-                    stationNameDiv.textContent = data.Departure[0].stop;
-                }
+	        if (data.error || !departures || departures.length === 0) {
+ 	           board.innerHTML = '<div class="error">Keine aktuellen Abfahrten gefunden oder API-Fehler.</div>';
+	            return;
+	        }
 
-                // Abfahrtstafel generieren
-                let html = '';
-                data.Departure.forEach(dep => {
-                    // Zeit formatieren (HH:MM)
-                    const zeit = dep.time.substring(0, 5);
-                    html += `
-                        <div class="departure-row">
-                            <span class="line">${dep.name}</span>
-                            <span class="direction">${dep.direction}</span>
-                            <span class="time">${zeit} Uhr</span>
-                        </div>
-                    `;
-                });
-                board.innerHTML = html;
-            })
-            .catch(err => {
-                board.innerHTML = '<div class="error">Verbindungsfehler zum Serverless-Backend.</div>';
-            });
+	        // Haltestellenname anzeigen (greift auf das erste Element zu)
+  	      stationNameDiv.textContent = departures[0].stop || "Abfahrtstafel";
+
+ 	       // Abfahrtstafel generieren
+ 	       let html = '';
+   	     departures.forEach(dep => {
+  	          const zeit = dep.time ? dep.time.substring(0, 5) : "--:--";
+   	         html += `
+  	              <div class="departure-row">
+     	               <span class="line">${dep.name || "Bus/Bahn"}</span>
+      	              <span class="direction">${dep.direction || "Unbekannt"}</span>
+     	               <span class="time">${zeit} Uhr</span>
+      	          </div>
+     	       `;
+     	   });
+    	    board.innerHTML = html;
+ 	   })
+ 	   .catch(err => {
+   	     board.innerHTML = '<div class="error">Verbindungsfehler zum Serverless-Backend.</div>';
+ 	   });
+
     }
 </script>
 </body>

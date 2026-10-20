@@ -14,7 +14,7 @@ export default async function handler(req, res) {
   const apiKey = process.env.RMV_API_KEY; 
   
   // Die offizielle RMV HAFAS Abfahrtstafel-URL (JSON-Format)
-  const rmvUrl = `https://rmv.de{apiKey}&extId=${id}&format=json`;
+  const rmvUrl = `https://rmv.de{apiKey}&id=${id}&format=json`;
 
   try {
     const response = await fetch(rmvUrl);
