@@ -14,7 +14,7 @@
         .line { background: #005a9c; color: white; padding: 3px 8px; border-radius: 4px; font-weight: bold; font-size: 0.9rem; }
         .direction { flex-grow: 1; margin-left: 12px; font-weight: 500; }
         .time { font-weight: bold; color: #e67e22; }
-        .error { color: #c0392b; font-weight: bold; text-align: center; margin-top: 20px; }
+        .error { color: #c0392b; font-weight: bold; background: #fdeae8; padding: 12px; border-radius: 6px; margin-top: 20px; font-size: 0.95rem; line-height: 1.4; }
         .loading { text-align: center; color: #7f8c8d; font-style: italic; padding: 20px; }
     </style>
 </head>
@@ -42,22 +42,21 @@
         fetch(`/api/departures?id=${stationId}`)
             .then(async res => {
                 const text = await res.text();
-                let data = null;
+                let parsedData = null;
                 try {
-                    data = JSON.parse(text);
+                    parsedData = JSON.parse(text);
                 } catch(e) {}
 
                 if (!res.ok) {
-                    // Wir werfen die Fehlermeldung aus dem Backend direkt weiter
-                    throw new Error(data?.error || `Server meldet Status ${res.status}: ${text.substring(0, 80)}`);
+                    throw new Error(parsedData?.error || `Serverfehler ${res.status}`);
                 }
-                return data;
+                return parsedData;
             })
             .then(data => {
                 const departures = data.DepartureList?.Departure;
 
                 if (!departures || departures.length === 0) {
-                    board.innerHTML = '<div class="error">Aktuell keine Abfahrten für diese Haltestelle im System.</div>';
+                    board.innerHTML = '<div class="error">Aktuell keine Abfahrten für diese Haltestelle im RMV-System.</div>';
                     stationNameDiv.textContent = "Keine Fahrten";
                     return;
                 }
@@ -82,9 +81,8 @@
             })
             .catch(err => {
                 console.error(err);
-                // Zeigt haargenau an, was schiefgeht!
-                board.innerHTML = `<div class="error"><b>Schnittstellen-Details:</b><br>${err.message}</div>`;
-                stationNameDiv.textContent = "Fehler-Diagnose";
+                board.innerHTML = `<div class="error"><b>Diagnose-Information:</b><br>${err.message}</div>`;
+                stationNameDiv.textContent = "Fehleranalyse";
             });
     }
 </script>
